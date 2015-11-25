@@ -40,7 +40,25 @@ for i in cf.describe_stack_resources('Web1'):
 
 # -Send web request
 validHtml = "<html><body>Automation for the People</body></html>"
-if requests.get("http://" + ip).text == validHtml:
-    print "Test 1: Website Online"
-else:
-    print "Test 1: FAILED - ERROR OCCURRED - Please delete 'Web1' stack and redeploy"
+counter = 0
+while True:
+    try:
+        req = requests.get("http://" + ip).text
+        if req == validHtml:
+            # Site has come online.
+            print "\nTest 1: Website Online"
+            break
+        else:
+            # Responding but not expected data.
+            print "\nTest 1: FAILED - UNEXPECTED RESPONSE - Please delete 'Web1' stack and redeploy"
+            print "Response text: ", req
+            break
+    except requests.exceptions.ConnectionError as e:
+        # Wait for a maxiumum of 5 minutes for system to come online.
+        if counter >= 100:
+            print "Test 1: FAILED - SITE NOT RESPONDING - Please delete 'Web1' stack and redeploy"
+            break
+        sys.stdout.write("Waiting for site to respond...\r")
+        sys.stdout.flush()
+        time.sleep(5)
+        counter += 1
