@@ -1,0 +1,138 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Launch the best website ever.",
+  "Parameters": {},
+  "Mappings": {},
+  "Conditions": {},
+  "Resources": {
+    
+    "VPC1": {
+      "Type": "AWS::EC2::VPC",
+      "Properties": {
+        "CidrBlock": "10.0.0.0/16"
+      }
+    },
+
+    "IGW1": {
+      "Type": "AWS::EC2::InternetGateway"
+    },
+
+    "VPC1IGWAttachment": {
+      "Type": "AWS::EC2::VPCGatewayAttachment",
+      "Properties": {
+        "VpcId": {"Ref": "VPC1"},
+        "InternetGatewayId": {"Ref": "IGW1"}
+      }
+    },
+
+    "PublicSubnet": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "AvailabilityZone": "us-east-1b",
+        "CidrBlock": "10.0.0.0/24",
+        "VpcId": {"Ref": "VPC1"}
+      }
+    },
+
+    "PublicRouteTable": {
+      "Type": "AWS::EC2::RouteTable",
+      "Properties": {
+        "VpcId": {"Ref": "VPC1"}
+      }
+    },
+
+    "PRTPublicRoute": {
+      "Type": "AWS::EC2::Route",
+      "Properties": {
+        "DestinationCidrBlock": "0.0.0.0/0",
+        "GatewayId": {"Ref": "IGW1"},
+        "RouteTableId": {"Ref": "PublicRouteTable"}
+      },
+      "DependsOn": "VPC1IGWAttachment"
+    },
+
+    "PubSubRTAssoc": {
+      "Metadata": {
+        "Comment": "Association for the Public Subnet with the appropriate Route Table"
+      },
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties": {
+        "RouteTableId": {"Ref": "PublicRouteTable"},
+        "SubnetId": {"Ref": "PublicSubnet"}
+      }
+    },
+
+    "WebSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "Security group for web ingress/egress",
+        "VpcId": {"Ref": "VPC1"},
+        "SecurityGroupEgress": [{
+          "IpProtocol": "tcp",
+          "FromPort": "80",
+          "ToPort": "80",
+          "CidrIp": "0.0.0.0/0"
+        }],
+        "SecurityGroupIngress": [{
+          "IpProtocol": "tcp",
+          "FromPort": "80",
+          "ToPort": "80",
+          "CidrIp": "0.0.0.0/0"
+        }]
+      }
+    },
+
+    "WebInstance": {
+      "Type": "AWS::EC2::Instance",
+      "Metadata": {
+        "AWS::CloudFormation::Init": {
+          "config": {
+            "files": {
+              "/usr/share/nginx/html/index.html": {
+                "content": {"Fn::Join": ["", [
+                  "<html><body>Automation for the People</body></html>"
+                ]]}
+              }
+            },
+            "packages": {
+              "yum": {
+                "nginx": []
+              }
+            },
+            "services": {
+              "sysvinit": {
+                "nginx": {
+                  "enabled": "true",
+                  "ensureRunning": "true",
+                  "files": ["/etc/nginx/nginx.conf"],
+                  "sources": ["/usr/share/nginx/html"]
+                }
+              }
+            }
+          }
+        }
+      },
+      "Properties": {
+        "ImageId": "ami-60b6c60a",
+        "InstanceType": "t2.micro",
+        "SecurityGroupIds": [{"Ref": "WebSecurityGroup"}],
+        "SubnetId": {"Ref": "PublicSubnet"},
+        "Tags": [{"Key": "Name",
+                 "Value": "Web"}],
+        "UserData": {"Fn::Base64": {"Fn::Join": ["", [
+          "#!/bin/bash -ex\n",
+          "/opt/aws/bin/cfn-init -s ", {"Ref": "AWS::StackName"}, " -r WebInstance"
+        ]]}}
+      }
+    },
+        
+    "EIP1": {
+      "Type": "AWS::EC2::EIP",
+      "Properties": {
+        "InstanceId": {"Ref": "WebInstance"},
+        "Domain": "vpc"
+      }
+    }
+  },
+  "Outputs": {}
+}
